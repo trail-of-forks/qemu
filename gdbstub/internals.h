@@ -47,9 +47,10 @@ enum RSState {
 };
 
 typedef struct GDBState {
-    bool init;       /* have we been initialised? */
-    CPUState *c_cpu; /* current CPU for step/continue ops */
-    CPUState *g_cpu; /* current CPU for other ops */
+    bool init;        /* have we been initialised? */
+    CPUState *c_cpu;  /* current CPU for legacy step/continue ops */
+    CPUState *vc_cpu; /* current CPU for vCont step/continue ops */
+    CPUState *g_cpu;  /* current CPU for other ops */
     CPUState *query_cpu; /* for q{f|s}ThreadInfo */
     enum RSState state; /* parsing state */
     char line_buf[MAX_PACKET_LENGTH];
@@ -65,7 +66,14 @@ typedef struct GDBState {
     GByteArray *mem_buf;
     int sstep_flags;
     int supported_sstep_flags;
+    int last_resume_was_vcont; /* Whether the last resume was (true) vCont or 
+                                * legacy (false). */
 } GDBState;
+
+#define GDBSERVER_STATE_STEP_CONTINUE_CPU \
+    (gdbserver_state.last_resume_was_vcont ? \
+        gdbserver_state.vc_cpu : \
+        gdbserver_state.c_cpu)
 
 /* lives in main gdbstub.c */
 extern GDBState gdbserver_state;

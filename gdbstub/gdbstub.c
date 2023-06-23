@@ -64,6 +64,7 @@ void gdb_init_gdbserver_state(void)
     gdbserver_state.str_buf = g_string_new(NULL);
     gdbserver_state.mem_buf = g_byte_array_sized_new(MAX_PACKET_LENGTH);
     gdbserver_state.last_packet = g_byte_array_sized_new(MAX_PACKET_LENGTH + 4);
+    gdbserver_state.last_resume_was_vcont = 0;
 
     /*
      * What single-step modes are supported is accelerator dependent.
@@ -501,7 +502,7 @@ static void gdb_process_breakpoint_remove_all(GDBProcess *p)
 
 static void gdb_set_cpu_pc(vaddr pc)
 {
-    CPUState *cpu = gdbserver_state.c_cpu;
+    CPUState *cpu = GDBSERVER_STATE_STEP_CONTINUE_CPU;
 
     cpu_synchronize_state(cpu);
     cpu_set_pc(cpu, pc);
@@ -705,7 +706,8 @@ static int gdb_handle_vcont(const char *p)
      * the ones we resumed/single stepped here.
      */
     if (target_count > 0) {
-        gdbserver_state.c_cpu = last_target;
+        gdbserver_state.last_resume_was_vcont = 1;
+        gdbserver_state.vc_cpu = last_target;
     }
 
     gdbserver_state.signal = signal;
@@ -905,15 +907,16 @@ static void handle_detach(GArray *params, void *user_ctx)
     gdb_process_breakpoint_remove_all(process);
     process->attached = false;
 
-    if (pid == gdb_get_cpu_pid(gdbserver_state.c_cpu)) {
+    if (pid == gdb_get_cpu_pid(GDBSERVER_STATE_STEP_CONTINUE_CPU)) {
+        gdbserver_state.vc_cpu = gdb_first_attached_cpu();
         gdbserver_state.c_cpu = gdb_first_attached_cpu();
     }
 
-    if (pid == gdb_get_cpu_pid(gdbserver_state.g_cpu)) {
+    if (pid == gdb_get_cpu_pid(GDBSERVER_STATE_STEP_CONTINUE_CPU)) {
         gdbserver_state.g_cpu = gdb_first_attached_cpu();
     }
 
-    if (!gdbserver_state.c_cpu) {
+    if (!GDBSERVER_STATE_STEP_CONTINUE_CPU) {
         /* No more process attached */
         gdb_disable_syscalls();
         gdb_continue();
@@ -952,6 +955,7 @@ static void handle_continue(GArray *params, void *user_ctx)
     }
 
     gdbserver_state.signal = 0;
+    gdbserver_state.last_resume_was_vcont = 0;
     gdb_continue();
 }
 
@@ -1235,6 +1239,7 @@ static void handle_step(GArray *params, void *user_ctx)
         gdb_set_cpu_pc(get_param(params, 0)->val_ull);
     }
 
+    gdbserver_state.last_resume_was_vcont = 0;
     cpu_single_step(gdbserver_state.c_cpu, gdbserver_state.sstep_flags);
     gdb_continue();
 }
@@ -1248,6 +1253,7 @@ static void handle_backward(GArray *params, void *user_ctx)
         switch (get_param(params, 0)->opcode) {
         case 's':
             if (replay_reverse_step()) {
+                gdbserver_state.last_resume_was_vcont = 0;
                 gdb_continue();
             } else {
                 gdb_put_packet("E14");
@@ -1255,6 +1261,7 @@ static void handle_backward(GArray *params, void *user_ctx)
             return;
         case 'c':
             if (replay_reverse_continue()) {
+                gdbserver_state.last_resume_was_vcont = 0;
                 gdb_continue();
             } else {
                 gdb_put_packet("E14");
@@ -1311,6 +1318,7 @@ static void handle_v_attach(GArray *params, void *user_ctx)
     process->attached = true;
     gdbserver_state.g_cpu = cpu;
     gdbserver_state.c_cpu = cpu;
+    gdbserver_state.vc_cpu = cpu;
 
     g_string_printf(gdbserver_state.str_buf, "T%02xthread:", GDB_SIGNAL_TRAP);
     gdb_append_thread_id(cpu, gdbserver_state.str_buf);
@@ -1728,7 +1736,7 @@ static void handle_gen_set(GArray *params, void *user_ctx)
 static void handle_target_halt(GArray *params, void *user_ctx)
 {
     g_string_printf(gdbserver_state.str_buf, "T%02xthread:", GDB_SIGNAL_TRAP);
-    gdb_append_thread_id(gdbserver_state.c_cpu, gdbserver_state.str_buf);
+    gdb_append_thread_id(GDBSERVER_STATE_STEP_CONTINUE_CPU, gdbserver_state.str_buf);
     g_string_append_c(gdbserver_state.str_buf, ';');
     gdb_put_strbuf();
     /*
@@ -1736,7 +1744,7 @@ static void handle_target_halt(GArray *params, void *user_ctx)
      * because gdb is doing an initial connect and the state
      * should be cleaned up.
      */
-    gdb_breakpoint_remove_all(gdbserver_state.c_cpu);
+    gdb_breakpoint_remove_all(GDBSERVER_STATE_STEP_CONTINUE_CPU);
 }
 
 static int gdb_handle_packet(const char *line_buf)
@@ -1998,6 +2006,7 @@ void gdb_set_stop_cpu(CPUState *cpu)
     }
 
     gdbserver_state.c_cpu = cpu;
+    gdbserver_state.vc_cpu = cpu;
     gdbserver_state.g_cpu = cpu;
 }
 

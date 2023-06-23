@@ -93,6 +93,7 @@ static void gdb_chr_event(void *opaque, QEMUChrEvent event)
 
         s->c_cpu = gdb_first_attached_cpu();
         s->g_cpu = s->c_cpu;
+        s->vc_cpu = s->c_cpu;
 
         vm_stop(RUN_STATE_PAUSED);
         replay_gdb_attached();
@@ -114,12 +115,12 @@ static void gdb_chr_event(void *opaque, QEMUChrEvent event)
 void gdb_syscall_handling(const char *syscall_packet)
 {
     vm_stop(RUN_STATE_DEBUG);
-    qemu_cpu_kick(gdbserver_state.c_cpu);
+    qemu_cpu_kick(GDBSERVER_STATE_STEP_CONTINUE_CPU);
 }
 
 static void gdb_vm_state_change(void *opaque, bool running, RunState state)
 {
-    CPUState *cpu = gdbserver_state.c_cpu;
+    CPUState *cpu = GDBSERVER_STATE_STEP_CONTINUE_CPU;
     g_autoptr(GString) buf = g_string_new(NULL);
     g_autoptr(GString) tid = g_string_new(NULL);
     const char *type;
