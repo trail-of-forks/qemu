@@ -17,7 +17,6 @@ MULTIARCH_TESTS = $(patsubst $(MULTIARCH_SYSTEM_SRC)/%.c, %, $(MULTIARCH_TEST_SR
 ifneq ($(HAVE_GDB_BIN),)
 ifeq ($(HOST_GDB_SUPPORTS_ARCH),y)
 GDB_SCRIPT=$(SRC_PATH)/tests/guest-debug/run-test.py
-CFLAGS+=-fno-stack-protector
 
 run-gdbstub-memory: memory
 	$(call run-test, $@, $(GDB_SCRIPT) \

@@ -47,7 +47,7 @@ def check_interrupt(thread):
     # Continue and then interrupt the task.
     gdb.post_event(lambda: gdb.execute("interrupt"))
     gdb.execute("c")
-    
+
     # Check whether the thread we're in after the interruption is the same we 
     # ran continue from.
     return (thread.num == gdb.selected_thread().num)
@@ -83,16 +83,16 @@ if len(gdb.selected_inferior().threads()) == 1:
     print("SKIP: set to run on a single thread")
     exit(0)
 
-#try:
-# These are not very useful in scripts
-gdb.execute("set pagination off")
+try:
+	# These are not very useful in scripts
+	gdb.execute("set pagination off")
 
-# Run the actual tests
-run_test()
-#except (gdb.error):
-#    print("GDB Exception: %s" % (sys.exc_info()[0]))
-#    failcount += 1
-#    pass
+	# Run the actual tests
+	run_test()
+except (gdb.error):
+    print("GDB Exception: %s" % (sys.exc_info()[0]))
+    failcount += 1
+    pass
 
 # Finally kill the inferior and exit gdb with a count of failures
 gdb.execute("kill")

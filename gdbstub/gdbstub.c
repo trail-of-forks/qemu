@@ -595,7 +595,7 @@ static int gdb_handle_vcont(const char *p)
      *  or incorrect parameters passed.
      */
     res = 0;
-    
+
     /* 
      * target_count and last_target keep track of how many CPUs we are going to
      * step or resume, and a pointer to the state structure of one of them, 
@@ -668,7 +668,7 @@ static int gdb_handle_vcont(const char *p)
             while (cpu) {
                 if (newstates[cpu->cpu_index] == 1) {
                     newstates[cpu->cpu_index] = cur_action;
-                    
+
                     target_count++;
                     last_target = cpu;
                 }
